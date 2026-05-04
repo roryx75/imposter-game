@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Imposter Theme Game</title>
+    <style>
+        :root {
+            --bg: #0b0b0b;
+            --card-bg: #161616;
+            --accent: #fe2c55; 
+            --safe-color: #25f4ee; 
+            --text: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        #game-box {
+            width: 90%;
+            max-width: 400px;
+            padding: 30px;
+            background: var(--card-bg);
+            border-radius: 30px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.7);
+            text-align: center;
+            border: 1px solid #222;
+            margin: 20px;
+        }
+
+        h1 { color: var(--safe-color); font-size: 1.8rem; margin-bottom: 20px; }
+        h2 { font-size: 1rem; color: #888; text-transform: uppercase; margin-top: 0; }
+
+        .input-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #bbb; font-size: 0.9rem; }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            background: #222;
+            color: white;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        #name-inputs-container {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding-right: 5px;
+        }
+
+        #display-area {
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+        }
+
+        .role-text { font-size: 1.5rem; font-weight: 800; }
+        .theme-highlight { color: var(--safe-color); display: block; font-size: 2.2rem; margin-top: 10px; }
+        .imposter-highlight { color: var(--accent); font-size: 2.5rem; }
+
+        button {
+            width: 100%;
+            padding: 18px;
+            border-radius: 50px;
+            border: none;
+            background: var(--text);
+            color: var(--bg);
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        button:active { transform: scale(0.96); }
+        .hidden { display: none; }
+        .pass-msg { color: var(--accent); font-style: italic; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+
+    <div id="game-box">
+        <div id="setup-screen">
+            <h1>Imposter Game</h1>
+            <div class="input-group">
+                <label>Total Players</label>
+                <input type="number" id="player-count" value="3" min="3" max="20">
+            </div>
+            <div class="input-group">
+                <label>Number of Imposters</label>
+                <input type="number" id="imposter-count" value="1" min="1" max="5">
+            </div>
+            <button onclick="showNameEntry()">NEXT</button>
+        </div>
+
+        <div id="name-screen" class="hidden">
+            <h1>Enter Names</h1>
+            <div id="name-inputs-container"></div>
+            <button onclick="initGame()">START GAME</button>
+        </div>
+
+        <div id="play-screen" class="hidden">
+            <h2 id="player-turn-label">PLAYER TURN</h2>
+            <div id="display-area">
+                <div id="prompt-text"></div>
+            </div>
+            <button id="action-btn" onclick="nextStep()">REVEAL ROLE</button>
+        </div>
+    </div>
+
+    <script>
+        const themes = [
+            "Pizza", "YouTube", "Sushi", "Eiffel Tower", "Basketball", "Harry Potter", 
+            "iPhone", "McDonald's", "Super Mario", "New York", "Spider-Man", "Bitcoin", 
+            "Starbucks", "Dinosaur", "Airplane", "Hollywood", "Ice Cream", "Tesla", 
+            "Gym", "Halloween", "Minecraft", "Beach", "London", "Doraemon", "White Girl Artists",
+            "Chocolate", "Space", "Backpack", "Firefighter", "Subway", "TikTok", "Elephant", "iShowSpeed", "Toothbrush",
+            "Banana", "Cookie", "Island", "Football", "KFC", "Splash (Water splash)", "Robber",
+        ];
+
+        let totalPlayers = 0;
+        let totalImposters = 0;
+        let playerNames = [];
+        let roles = [];
+        let currentPlayerIndex = 0;
+        let currentTheme = "";
+        let isRevealed = false;
+
+        function showNameEntry() {
+            totalPlayers = parseInt(document.getElementById('player-count').value);
+            totalImposters = parseInt(document.getElementById('imposter-count').value);
+
+            if (totalImposters >= totalPlayers) {
+                alert("Too many imposters!");
+                return;
+            }
+
+            const container = document.getElementById('name-inputs-container');
+            container.innerHTML = ''; // Clear old inputs
+
+            for (let i = 1; i <= totalPlayers; i++) {
+                container.innerHTML += `
+                    <div class="input-group">
+                        <label>Player ${i} Name</label>
+                        <input type="text" class="player-name-input" placeholder="Enter name...">
+                    </div>
+                `;
+            }
+
+            document.getElementById('setup-screen').classList.add('hidden');
+            document.getElementById('name-screen').classList.remove('hidden');
+        }
+
+        function initGame() {
+            const nameInputs = document.querySelectorAll('.player-name-input');
+            playerNames = Array.from(nameInputs).map((input, index) => input.value || `Player ${index + 1}`);
+
+            currentTheme = themes[Math.floor(Math.random() * themes.length)];
+            roles = new Array(totalPlayers).fill("SAFE");
+            
+            let count = 0;
+            while (count < totalImposters) {
+                let rand = Math.floor(Math.random() * totalPlayers);
+                if (roles[rand] === "SAFE") {
+                    roles[rand] = "IMPOSTER";
+                    count++;
+                }
+            }
+
+            currentPlayerIndex = 0;
+            isRevealed = false;
+            
+            document.getElementById('name-screen').classList.add('hidden');
+            document.getElementById('play-screen').classList.remove('hidden');
+            updateTurnUI();
+        }
+
+        function updateTurnUI() {
+            const currentName = playerNames[currentPlayerIndex];
+            document.getElementById('player-turn-label').innerText = `Player: ${currentName}`;
+            document.getElementById('prompt-text').innerHTML = `Are you <span style="color:var(--safe-color)">${currentName}</span>?`;
+            document.getElementById('action-btn').innerText = "REVEAL ROLE";
+            isRevealed = false;
+        }
+
+        function nextStep() {
+            const display = document.getElementById('prompt-text');
+            const btn = document.getElementById('action-btn');
+            const currentName = playerNames[currentPlayerIndex];
+
+            if (!isRevealed) {
+                if (roles[currentPlayerIndex] === "IMPOSTER") {
+                    display.innerHTML = `<span class="role-text imposter-highlight">IMPOSTER</span><br><small>Try to find the theme!</small>`;
+                } else {
+                    display.innerHTML = `<span class="role-text">Safe, your theme is:</span><span class="theme-highlight">${currentTheme}</span>`;
+                }
+                btn.innerText = "OK";
+                isRevealed = true;
+            } else {
+                currentPlayerIndex++;
+
+                if (currentPlayerIndex < totalPlayers) {
+                    const nextName = playerNames[currentPlayerIndex];
+                    display.innerHTML = `<span class="pass-msg">Pass the phone to <br><strong>${nextName}</strong></span>`;
+                    document.getElementById('player-turn-label').innerText = "WAITING...";
+                    btn.innerText = `I AM ${nextName.toUpperCase()}`;
+                    isRevealed = false;
+                    
+                    btn.onclick = function() {
+                        updateTurnUI();
+                        btn.onclick = nextStep;
+                    };
+                } else {
+                    display.innerHTML = `<span class="role-text">All roles revealed!</span><br>Start the discussion.`;
+                    btn.innerText = "NEW GAME";
+                    btn.onclick = () => location.reload();
+                }
+            }
+        }
+    </script>
+</body>
+</html>
